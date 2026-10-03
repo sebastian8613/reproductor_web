@@ -945,39 +945,52 @@ body {
    REGLAS RESPONSIVE (MÓVIL Y TABLET)
    ========================================================= */
 
-@media (max-width: 650px) {
-  .hide-mobile {
-    display: none !important;
+/* =========================================================
+   DISEÑO RESPONSIVO MÓVIL (APILADO VERTICAL)
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .app-container {
+    flex-direction: column !important;
+    height: auto !important;
+    overflow-y: auto;
   }
 
-  .hero-decoration {
-    display: none;
-  }
-
-  /* Ajuste de menú superior en celular */
   .sidebar {
-    padding: 10px 14px;
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+    padding: 14px 16px;
+  }
+
+  .sidebar-header {
+    margin-bottom: 10px;
   }
 
   .sidebar-nav {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .sidebar-nav ul {
+    flex-direction: row;
     flex-wrap: wrap;
     gap: 6px;
   }
 
   .sidebar-nav li {
-    padding: 6px 10px;
-    font-size: 0.8rem;
+    padding: 6px 12px;
+    font-size: 0.82rem;
   }
 
-  /* Ajuste de Banner Hero */
+  .main-content {
+    padding: 16px;
+    gap: 16px;
+    overflow-y: visible;
+  }
+
   .hero-banner {
     padding: 18px 16px;
-    height: auto;
   }
 
   .hero-text h1 {
@@ -986,15 +999,13 @@ body {
 
   .hero-text p {
     font-size: 0.82rem;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
 
-  .btn-hero {
-    padding: 8px 14px;
-    font-size: 0.82rem;
+  .hero-decoration {
+    display: none;
   }
 
-  /* Ajuste de controles y tabla */
   .header-controls {
     width: 100%;
     flex-direction: column;
@@ -1003,6 +1014,10 @@ body {
 
   .search-box input {
     width: 100%;
+  }
+
+  .hide-mobile {
+    display: none !important;
   }
 
   .player-bar {
@@ -1024,17 +1039,5 @@ body {
     width: 100%;
     order: 3;
     margin-top: 4px;
-  }
-
-  .progress-container {
-    font-size: 0.7rem;
-  }
-
-  .canvas-song-details h1 {
-    font-size: 1.4rem;
-  }
-
-  .canvas-content-overlay {
-    padding: 18px;
   }
 }
