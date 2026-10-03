@@ -945,71 +945,6 @@ body {
    REGLAS RESPONSIVE (MÓVIL Y TABLET)
    ========================================================= */
 
-@media (max-width: 900px) {
-  .app-container {
-    flex-direction: column;
-    height: calc(100vh - 120px);
-  }
-
-  .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
-    padding: 12px 20px;
-  }
-
-  .sidebar-header {
-    margin-bottom: 10px;
-  }
-
-  .sidebar-nav {
-    flex-direction: row;
-    gap: 15px;
-    overflow-x: auto;
-  }
-
-  .nav-section {
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .nav-section .section-title {
-    display: none;
-  }
-
-  .sidebar-nav ul {
-    flex-direction: row;
-    gap: 8px;
-  }
-
-  .main-content {
-    padding: 15px 18px;
-    gap: 18px;
-  }
-
-  .hero-banner {
-    padding: 20px 24px;
-  }
-
-  .hero-text h1 {
-    font-size: 1.6rem;
-  }
-
-  .vinyl-record {
-    width: 80px;
-    height: 80px;
-  }
-
-  .edit-modal-body {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .edit-cover-section {
-    width: 100%;
-  }
-}
-
 @media (max-width: 650px) {
   .hide-mobile {
     display: none !important;
@@ -1019,6 +954,47 @@ body {
     display: none;
   }
 
+  /* Ajuste de menú superior en celular */
+  .sidebar {
+    padding: 10px 14px;
+  }
+
+  .sidebar-nav {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .sidebar-nav ul {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .sidebar-nav li {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+
+  /* Ajuste de Banner Hero */
+  .hero-banner {
+    padding: 18px 16px;
+    height: auto;
+  }
+
+  .hero-text h1 {
+    font-size: 1.3rem;
+  }
+
+  .hero-text p {
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+  }
+
+  .btn-hero {
+    padding: 8px 14px;
+    font-size: 0.82rem;
+  }
+
+  /* Ajuste de controles y tabla */
   .header-controls {
     width: 100%;
     flex-direction: column;
@@ -1031,9 +1007,9 @@ body {
 
   .player-bar {
     height: auto;
-    padding: 12px 16px;
+    padding: 10px 14px;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
   }
 
   .player-left {
