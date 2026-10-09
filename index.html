@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NOIR - Reproductor de Música</title>
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('noir_theme_mode');
+        var system = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', saved === 'light' || saved === 'dark' ? saved : system);
+      } catch (_) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+  <!-- Iconos FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Librería para extraer metadatos ID3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+</head>
+<body>
+
+  <!-- SPRITE DE LOGOS (se reutiliza con <use>) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="grad-applemusic" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#FA5C74"/><stop offset="1" stop-color="#F9233B"/>
+      </linearGradient>
+    </defs>
+    <symbol id="logo-spotify" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="12" fill="#1DB954"/>
+      <path d="M5.5 9c4.3-1.3 9.2-.9 13.1 1.4" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+      <path d="M6.3 12.5c3.6-1 7.5-.7 10.6 1.1" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M7.1 15.7c2.8-.8 5.7-.5 8.2.9" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="logo-ytmusic" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="12" fill="#FF0000"/>
+      <circle cx="12" cy="12" r="6.3" fill="none" stroke="#fff" stroke-width="1.5"/>
+      <path d="M10.4 9v6l4.9-3z" fill="#fff"/>
+    </symbol>
+    <symbol id="logo-applemusic" viewBox="0 0 24 24">
+      <rect width="24" height="24" rx="5.5" fill="url(#grad-applemusic)"/>
+      <path d="M9 7.1l7.6-1.6v2.7L9 9.8z" fill="#fff"/>
+      <rect x="8.2" y="7.4" width="1.3" height="8.1" fill="#fff"/>
+      <rect x="15.8" y="5.8" width="1.3" height="8.4" fill="#fff"/>
+      <ellipse cx="7.1" cy="15.7" rx="2.2" ry="1.7" fill="#fff"/>
+      <ellipse cx="14.7" cy="14.3" rx="2.2" ry="1.7" fill="#fff"/>
+    </symbol>
+  </svg>
+
+  <!-- FONDO AMBIENTAL CANVAS EN BUCLE -->
+  <div id="canvas-ambient-bg" class="canvas-ambient"></div>
+
+  <div class="app-container">
+    <!-- BARRA LATERAL (SIDEBAR / RESPONSIVE MENU) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <i class="fas fa-compact-disc logo-icon"></i>
+          <span class="logo-text">NOIR</span>
+        </div>
+        <div class="sidebar-top-actions">
+          <button id="theme-toggle" class="btn-icon" title="Cambiar Tema" aria-pressed="false">
+            <i id="theme-icon" class="fas fa-moon"></i>
+          </button>
+          <button id="btn-open-settings" class="btn-icon" title="Ajustes de NOIR" aria-label="Abrir ajustes">
+            <i class="fas fa-sliders"></i>
+          </button>
+          <button id="btn-open-integrations" class="btn-icon" title="Servicios externos">
+            <i class="fas fa-plug"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- ZONA FIJA DE IMPORTACIÓN: siempre visible, no se desplaza con la biblioteca -->
+      <section class="sidebar-sources" aria-label="Añadir música">
+        <div class="src-group">
+          <span class="section-title src-title">CARGA LOCAL</span>
+          <div class="src-local">
+            <button id="btn-import-files" class="src-btn src-primary" type="button" title="Importar archivos de audio" aria-label="Importar canciones">
+              <i class="fas fa-file-audio" aria-hidden="true"></i>
+              <span class="src-label"><span class="lbl-full">Importar canciones</span><span class="lbl-short">Canciones</span></span>
+            </button>
+            <button id="btn-import-folder" class="src-btn src-primary" type="button" title="Selecciona una carpeta completa de música" aria-label="Cargar carpeta">
+              <i class="fas fa-folder-open" aria-hidden="true"></i>
+              <span class="src-label"><span class="lbl-full">Cargar carpeta</span><span class="lbl-short">Carpeta</span></span>
+            </button>
+          </div>
+          <!-- Inputs invisibles (mismos IDs que usa la lógica de importación) -->
+          <input type="file" id="file-input" accept="audio/*" multiple style="display: none;">
+          <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;">
+        </div>
+
+        <span class="src-divider" aria-hidden="true"></span>
+
+        <div class="src-group">
+          <span class="section-title src-title">SERVICIOS EXTERNOS</span>
+          <div class="src-external">
+            <button class="src-btn src-ext" type="button" data-open-service="spotify" style="--brand:#1DB954" title="Spotify: pegar enlace o conectar cuenta" aria-label="Abrir Spotify">
+              <span class="src-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-spotify"/></svg></span>
+              <span class="src-ext-name">Spotify</span>
+              <i class="src-dot" aria-hidden="true"></i>
+            </button>
+            <button class="src-btn src-ext" type="button" data-open-service="youtube" style="--brand:#FF0000" title="YouTube Music: pegar enlace de vídeo o playlist" aria-label="Abrir YouTube Music">
+              <span class="src-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-ytmusic"/></svg></span>
+              <span class="src-ext-name">YT Music</span>
+              <i class="src-dot" aria-hidden="true"></i>
+            </button>
+            <button class="src-btn src-ext" type="button" data-open-service="apple" style="--brand:#FA243C" title="Apple Music: pegar enlace o preparar MusicKit" aria-label="Abrir Apple Music">
+              <span class="src-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-applemusic"/></svg></span>
+              <span class="src-ext-name">Apple</span>
+              <i class="src-dot" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <span class="section-title">BIBLIOTECA</span>
+          <ul>
+            <li class="active" id="nav-all">
+              <div class="playlist-item-left">
+                <i class="fas fa-music"></i>
+                <span>Todas las canciones</span>
+              </div>
+            </li>
+            <li id="nav-favs">
+              <div class="playlist-item-left">
+                <i class="fas fa-heart"></i>
+                <span>Favoritos</span>
+              </div>
+              <span id="fav-count" class="badge">0</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-section">
+          <div class="section-header">
+            <span class="section-title">MIS PLAYLISTS</span>
+            <button id="btn-add-playlist" class="btn-icon-small" title="Nueva Playlist">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+          <ul id="playlists-list">
+            <!-- Las playlists se cargarán dinámicamente -->
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="main-content">
+      <!-- HERO BANNER (compacto, solo informativo) -->
+      <section class="hero-banner hero-compact">
+        <div class="hero-text">
+          <span class="hero-subtitle">PERSONAL MUSIC LIBRARY</span>
+          <h1>Escucha lo que te mueve.</h1>
+          <p>Música guardada localmente con reproducción persistente, edición de metadatos y vista Canvas. Añade más desde el panel lateral.</p>
+        </div>
+
+        <div class="hero-decoration">
+          <div class="vinyl-record">
+            <div class="vinyl-center"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECCIÓN DE BIBLIOTECA -->
+      <section class="library-section">
+        <div class="library-header">
+          <div>
+            <h2 id="current-view-title">Tu biblioteca</h2>
+            <span id="song-count" class="subtext">0 canciones</span>
+          </div>
+
+          <!-- CONTROLES DE CABECERA -->
+          <div class="header-controls">
+            <div class="sort-box">
+              <i class="fas fa-sort-amount-down"></i>
+              <select id="sort-select" title="Ordenar por">
+                <option value="default">Orden por defecto</option>
+                <option value="title-asc">Título (A - Z)</option>
+                <option value="title-desc">Título (Z - A)</option>
+                <option value="artist-asc">Artista (A - Z)</option>
+                <option value="date-desc">Más recientes primero</option>
+                <option value="date-asc">Más antiguos primero</option>
+              </select>
+            </div>
+
+            <div class="search-box">
+              <i class="fas fa-search"></i>
+              <input type="text" id="search-input" placeholder="Buscar canción, artista o género...">
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLA DE CANCIONES RESPONSIVE -->
+        <div class="table-container">
+          <table class="songs-table">
+            <thead>
+              <tr>
+                <th class="col-num">#</th>
+                <th class="col-cover">Carátula</th>
+                <th class="col-title">Título</th>
+                <th class="col-artist hide-mobile">Artista / Álbum</th>
+                <th class="col-duration hide-mobile">Duración</th>
+                <th class="col-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="songs-list">
+              <!-- Filas generadas dinámicamente -->
+            </tbody>
+          </table>
+
+          <div id="empty-state" class="empty-state">
+            <i class="fas fa-compact-disc"></i>
+            <p>Aún no hay canciones en esta sección</p>
+            <small>Importa tus archivos de audio locales o una carpeta para comenzar</small>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- BARRA DE REPRODUCCIÓN (PLAYER BAR) -->
+  <footer class="player-bar">
+    <div class="player-left">
+      <div class="player-cover-wrapper" id="btn-open-canvas-view" title="Abrir vista Canvas en pantalla completa">
+        <canvas id="player-canvas-loop" class="player-canvas-loop" aria-hidden="true"></canvas>
+        <img id="player-cover" 
+             src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%232c2c2e'/%3E%3Ccircle cx='50' cy='50' r='25' stroke='%23555' stroke-width='4' fill='none'/%3E%3Ccircle cx='50' cy='50' r='8' fill='%23777'/%3E%3C/svg%3E" 
+             alt="Portada" 
+             onerror="onCoverError(this)">
+        <div class="canvas-hover-overlay">
+          <i class="fas fa-expand-alt"></i>
+        </div>
+      </div>
+      <div class="player-song-info">
+        <span id="player-title" class="song-title">Elige una canción</span>
+        <span id="player-artist" class="song-artist">Tu biblioteca aparecerá aquí</span>
+      </div>
+      <button id="player-fav-btn" class="btn-icon-small">
+        <i class="far fa-heart"></i>
+      </button>
+    </div>
+
+    <div class="player-center">
+      <div class="player-controls">
+        <button id="btn-shuffle" class="btn-icon-small" title="Aleatorio">
+          <i class="fas fa-random"></i>
+        </button>
+        <button id="btn-prev" class="btn-icon-small" title="Anterior">
+          <i class="fas fa-step-backward"></i>
+        </button>
+        <button id="btn-play" class="btn-play-main" title="Reproducir">
+          <i class="fas fa-play"></i>
+        </button>
+        <button id="btn-next" class="btn-icon-small" title="Siguiente">
+          <i class="fas fa-step-forward"></i>
+        </button>
+        <button id="btn-repeat" class="btn-icon-small" title="Repetir">
+          <i class="fas fa-redo"></i>
+        </button>
+      </div>
+
+      <div class="progress-container">
+        <span id="current-time">0:00</span>
+        <input type="range" id="progress-bar" value="0" min="0" max="100">
+        <span id="total-time">0:00</span>
+      </div>
+    </div>
+
+    <div class="player-right">
+      <button id="btn-toggle-canvas" class="btn-icon-small" title="Modo Canvas (Pantalla completa)">
+        <i class="fas fa-tv"></i>
+      </button>
+      <div class="volume-container hide-mobile">
+        <i id="volume-icon" class="fas fa-volume-up"></i>
+        <input type="range" id="volume-bar" value="100" min="0" max="100">
+      </div>
+    </div>
+  </footer>
+
+  <!-- VISTA PANTALLA COMPLETA NOIR CANVAS -->
+  <div id="fullscreen-canvas-view" class="fullscreen-canvas">
+    <button id="btn-close-canvas" class="btn-close-canvas" title="Cerrar vista Canvas">
+      <i class="fas fa-compress-alt"></i>
+    </button>
+    
+    <div class="canvas-video-container">
+      <canvas id="canvas-visual-loop" class="canvas-visual-loop" aria-hidden="true"></canvas>
+      <img id="canvas-full-cover" src="" alt="Canvas Visual" class="canvas-full-img" onerror="onCoverError(this)">
+    </div>
+
+    <div class="canvas-content-overlay">
+      <div class="canvas-song-details">
+        <span class="canvas-badge"><i class="fas fa-sparkles"></i> NOIR CANVAS MODE</span>
+        <h1 id="canvas-full-title">Título de la Canción</h1>
+        <h3 id="canvas-full-artist">Artista — Álbum</h3>
+        <span id="canvas-full-genre" class="canvas-genre-tag">Sin Género</span>
+      </div>
+
+      <div class="canvas-player-controls">
+        <div class="canvas-progress-container">
+          <span id="canvas-current-time">0:00</span>
+          <input type="range" id="canvas-progress-bar" value="0" min="0" max="100">
+          <span id="canvas-total-time">0:00</span>
+        </div>
+        <div class="canvas-controls-buttons">
+          <button id="canvas-btn-shuffle" class="btn-icon-small" title="Aleatorio">
+            <i class="fas fa-random"></i>
+          </button>
+          <button id="canvas-btn-prev" class="btn-icon-small" title="Anterior">
+            <i class="fas fa-step-backward"></i>
+          </button>
+          <button id="canvas-btn-play" class="btn-play-main" title="Reproducir">
+            <i class="fas fa-play"></i>
+          </button>
+          <button id="canvas-btn-next" class="btn-icon-small" title="Siguiente">
+            <i class="fas fa-step-forward"></i>
+          </button>
+          <button id="canvas-btn-repeat" class="btn-icon-small" title="Repetir">
+            <i class="fas fa-redo"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EDITAR CANCIÓN Y CARÁTULA -->
+  <div id="edit-song-modal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3>Editar datos de la canción</h3>
+        <button id="btn-close-edit-modal" class="btn-icon-small">&times;</button>
+      </div>
+      <div class="modal-body edit-modal-body">
+        <div class="edit-cover-section">
+          <div class="edit-cover-wrapper">
+            <img id="edit-cover-preview" src="" alt="Vista previa de carátula" onerror="onCoverError(this)">
+          </div>
+          <button id="btn-change-cover" class="btn-secondary-modal"><i class="fas fa-image"></i> Cambiar carátula</button>
+          <input type="file" id="edit-cover-input" accept="image/*" style="display: none;">
+        </div>
+
+        <div class="edit-inputs-section">
+          <div class="input-group">
+            <label for="edit-song-title">Título de la canción</label>
+            <input type="text" id="edit-song-title" class="custom-input" placeholder="Nombre de la pista">
+          </div>
+          <div class="input-group">
+            <label for="edit-song-artist">Artista(s)</label>
+            <input type="text" id="edit-song-artist" class="custom-input" placeholder="Ej. Silo, Steven Cranberry...">
+          </div>
+          <div class="input-group">
+            <label for="edit-song-album">Álbum</label>
+            <input type="text" id="edit-song-album" class="custom-input" placeholder="Nombre del álbum">
+          </div>
+          <div class="input-group">
+            <label for="edit-song-genre">Género musical</label>
+            <input type="text" id="edit-song-genre" class="custom-input" placeholder="Ej. Lo-Fi, Hip Hop, Rock, Pop...">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-edit-song" class="btn-secondary-modal">Cancelar</button>
+        <button id="btn-save-edit-song" class="btn-primary-modal"><i class="fas fa-save"></i> Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CREAR PLAYLIST -->
+  <div id="create-playlist-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Crear nueva playlist</h3>
+        <button id="btn-close-create-modal" class="btn-icon-small">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="new-playlist-name">Nombre de la playlist</label>
+          <input type="text" id="new-playlist-name" placeholder="Escribe el nombre aquí..." class="custom-input" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-create-playlist" class="btn-secondary-modal">Cancelar</button>
+        <button id="btn-confirm-create-playlist" class="btn-primary-modal">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL AGREGAR A PLAYLIST -->
+  <div id="playlist-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Añadir a playlist</h3>
+        <button id="btn-close-modal" class="btn-icon-small">&times;</button>
+      </div>
+      <div id="modal-playlists-list" class="modal-body">
+        <!-- Lista de playlists -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL AJUSTES: AUDIO / APARIENCIA / SERVICIOS -->
+  <div id="settings-modal" class="modal settings-modal" aria-hidden="true">
+    <div class="modal-content settings-content" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-header settings-header">
+        <div>
+          <h3 id="settings-title">Ajustes de NOIR</h3>
+          <span class="settings-subtitle">Audio, apariencia y servicios en un solo panel.</span>
+        </div>
+        <button id="btn-close-settings" class="btn-icon-small" title="Cerrar ajustes" aria-label="Cerrar ajustes">&times;</button>
+      </div>
+
+      <div class="settings-tabs" role="tablist" aria-label="Secciones de ajustes">
+        <button class="settings-tab active" role="tab" aria-selected="true" data-settings-tab="equalizer">
+          <i class="fas fa-sliders"></i><span>Ecualizador</span>
+        </button>
+        <button class="settings-tab" role="tab" aria-selected="false" data-settings-tab="appearance">
+          <i class="fas fa-palette"></i><span>Apariencia</span>
+        </button>
+        <button class="settings-tab" role="tab" aria-selected="false" data-settings-tab="services">
+          <i class="fas fa-plug"></i><span>Servicios</span>
+        </button>
+      </div>
+
+      <section class="settings-panel active" data-settings-panel="equalizer" role="tabpanel">
+        <div class="settings-section-head">
+          <div>
+            <h4>Ecualizador de 10 bandas</h4>
+            <p>Procesamiento real mediante Web Audio API sobre el mismo audio local de NOIR.</p>
+          </div>
+          <span id="eq-status" class="settings-status">Listo</span>
+        </div>
+        <div id="eq-sliders" class="eq-sliders" aria-label="Bandas del ecualizador"></div>
+        <div class="eq-scale"><span>-12 dB</span><span>0 dB</span><span>+12 dB</span></div>
+        <div class="eq-presets" id="eq-presets" aria-label="Presets del ecualizador">
+          <button type="button" class="is-active" data-preset="flat">Flat</button>
+          <button type="button" data-preset="rock">Rock</button>
+          <button type="button" data-preset="pop">Pop</button>
+          <button type="button" data-preset="bass">Bass Boost</button>
+          <button type="button" data-preset="vocal">Vocal</button>
+          <button type="button" data-preset="electronic">Electronic</button>
+        </div>
+        <div class="eq-visualizer">
+          <canvas id="eq-canvas" width="960" height="160"></canvas>
+          <div class="eq-visualizer-label"><i class="fas fa-wave-square"></i> Analizador espectral</div>
+        </div>
+      </section>
+
+      <section class="settings-panel" data-settings-panel="appearance" role="tabpanel">
+        <div class="settings-section-head">
+          <div>
+            <h4>Apariencia</h4>
+            <p>El modo y la paleta se guardan automáticamente en este navegador.</p>
+          </div>
+        </div>
+
+        <div class="appearance-block">
+          <div class="appearance-label"><span>Modo de interfaz</span><small>Contraste completo entre claro y oscuro.</small></div>
+          <div class="theme-mode-switch" role="group" aria-label="Modo de interfaz">
+            <button type="button" data-mode-choice="dark"><i class="fas fa-moon"></i> Oscuro</button>
+            <button type="button" data-mode-choice="light"><i class="fas fa-sun"></i> Claro</button>
+          </div>
+        </div>
+
+        <div class="appearance-block">
+          <div class="appearance-label"><span>Paletas predeterminadas</span><small>Elige una identidad visual sin perder el resto del diseño.</small></div>
+          <div class="theme-presets" id="theme-presets" role="group" aria-label="Paletas">
+            <button type="button" data-theme-preset="noir"><i></i><span>NOIR</span></button>
+            <button type="button" data-theme-preset="ocean"><i></i><span>Ocean</span></button>
+            <button type="button" data-theme-preset="violet"><i></i><span>Violet</span></button>
+            <button type="button" data-theme-preset="sunset"><i></i><span>Sunset</span></button>
+            <button type="button" data-theme-preset="mint"><i></i><span>Mint</span></button>
+          </div>
+        </div>
+
+        <div class="appearance-block">
+          <div class="appearance-label"><span>Personalización</span><small>Colores editables con selector nativo.</small></div>
+          <div class="color-grid">
+            <label><span>Primario</span><input type="color" id="color-primary" value="#00D9FF"></label>
+            <label><span>Acento</span><input type="color" id="color-accent" value="#18E2FF"></label>
+            <label><span>Fondo</span><input type="color" id="color-bg" value="#090C10"></label>
+            <label><span>Panel</span><input type="color" id="color-card" value="#131A21"></label>
+          </div>
+        </div>
+
+        <div class="appearance-actions">
+          <button id="btn-reset-theme" type="button" class="btn-secondary-modal"><i class="fas fa-rotate-left"></i> Restaurar paleta del modo</button>
+        </div>
+      </section>
+
+      <section class="settings-panel" data-settings-panel="services" role="tabpanel">
+        <div class="settings-section-head">
+          <div>
+            <h4>Servicios externos</h4>
+            <p>Solo Spotify, Apple Music y YouTube Music. La biblioteca local permanece independiente.</p>
+          </div>
+        </div>
+        <div class="service-grid">
+          <article class="service-card"><div class="service-card-icon spotify"><i class="fab fa-spotify"></i></div><b>Spotify</b><span>OAuth 2.0/PKCE, Web API para metadatos y Web Playback SDK para reproducción oficial.</span><button type="button" data-service="spotify" class="service-doc-button">Documentación</button></article>
+          <article class="service-card"><div class="service-card-icon apple"><i class="fab fa-apple"></i></div><b>Apple Music</b><span>MusicKit JS + Apple Music API, con Developer Token y autorización del usuario.</span><button type="button" data-service="apple" class="service-doc-button">Documentación</button></article>
+          <article class="service-card"><div class="service-card-icon youtube"><i class="fab fa-youtube"></i></div><b>YouTube Music</b><span>YouTube IFrame Player API para contenido embebido; no descarga audio a la biblioteca local.</span><button type="button" data-service="youtube" class="service-doc-button">Abrir YouTube Music</button></article>
+        </div>
+        <div class="settings-service-foot">
+          <span>Para configurar OAuth y reproductores oficiales, abre el panel de conexiones detalladas.</span>
+          <button id="btn-open-integrations-from-settings" type="button" class="btn-primary-modal"><i class="fas fa-plug"></i> Panel de conexiones</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- MODAL DE SERVICIOS EXTERNOS: SPOTIFY / YOUTUBE MUSIC / APPLE MUSIC (una pestaña por servicio) -->
+  <div id="integrations-modal" class="modal">
+    <div class="modal-content integrations-modal-content" role="dialog" aria-modal="true" aria-labelledby="integrations-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="integrations-title">Servicios externos</h3>
+          <small class="subtext">Pega un enlace para reproducirlo con el reproductor oficial del servicio. No se copia a tu biblioteca local.</small>
+        </div>
+        <button id="btn-close-integrations" class="btn-icon-small" title="Cerrar" aria-label="Cerrar">&times;</button>
+      </div>
+
+      <div class="svc-tabs" role="tablist" aria-label="Servicio externo">
+        <button type="button" class="svc-tab" role="tab" id="svc-tab-spotify" aria-controls="svc-panel-spotify" data-svc-tab="spotify" style="--brand:#1DB954">
+          <span class="svc-tab-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-spotify"/></svg></span><span class="svc-tab-name">Spotify</span><i class="src-dot" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="svc-tab" role="tab" id="svc-tab-youtube" aria-controls="svc-panel-youtube" data-svc-tab="youtube" style="--brand:#FF0000">
+          <span class="svc-tab-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-ytmusic"/></svg></span><span class="svc-tab-name">YouTube Music</span><i class="src-dot" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="svc-tab" role="tab" id="svc-tab-apple" aria-controls="svc-panel-apple" data-svc-tab="apple" style="--brand:#FA243C">
+          <span class="svc-tab-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-applemusic"/></svg></span><span class="svc-tab-name">Apple Music</span><i class="src-dot" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="integrations-grid">
+        <!-- SPOTIFY -->
+        <article class="integration-card" id="svc-panel-spotify" role="tabpanel" aria-labelledby="svc-tab-spotify" data-service-card="spotify">
+          <div class="integration-card-head">
+            <div class="integration-icon spotify"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-spotify"/></svg></div>
+            <div><h4>Spotify</h4><p>Playlists, álbumes, canciones y podcasts de Spotify.</p></div>
+          </div>
+          <span id="spotify-status" class="integration-status">No configurado</span>
+
+          <label class="svc-label" for="spotify-link">Enlace de Spotify</label>
+          <div class="svc-link-row">
+            <div class="svc-input-wrap">
+              <input id="spotify-link" class="integration-input" type="text" autocomplete="off" spellcheck="false" placeholder="https://open.spotify.com/playlist/…">
+              <button type="button" class="svc-paste" data-paste-target="spotify-link" title="Pegar desde el portapapeles" aria-label="Pegar desde el portapapeles"><i class="fas fa-paste"></i></button>
+            </div>
+            <button type="button" class="btn-primary-modal svc-load" data-load-link="spotify">Cargar</button>
+          </div>
+          <small class="svc-hint">Acepta enlaces de open.spotify.com y URIs spotify:…</small>
+          <div id="spotify-embed" class="svc-embed" hidden></div>
+
+          <details class="svc-advanced">
+            <summary><i class="fas fa-key"></i> Conectar cuenta (avanzado)</summary>
+            <p>Autenticación OAuth 2.0 + PKCE para el Web Playback SDK (requiere Spotify Premium y tu propio Client ID).</p>
+            <input id="spotify-client-id" class="integration-input" type="text" autocomplete="off" placeholder="Client ID de Spotify">
+            <button class="btn-primary-modal integration-connect" data-service="spotify">Preparar conexión</button>
+          </details>
+          <a class="integration-doc-link" href="https://developer.spotify.com/documentation/web-playback-sdk" target="_blank" rel="noopener noreferrer">Documentación oficial</a>
+        </article>
+
+        <!-- YOUTUBE MUSIC -->
+        <article class="integration-card" id="svc-panel-youtube" role="tabpanel" aria-labelledby="svc-tab-youtube" data-service-card="youtube">
+          <div class="integration-card-head">
+            <div class="integration-icon youtube"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-ytmusic"/></svg></div>
+            <div><h4>YouTube Music</h4><p>Vídeos y playlists mediante el reproductor oficial incrustado.</p></div>
+          </div>
+          <span id="youtube-status" class="integration-status">No configurado</span>
+
+          <label class="svc-label" for="youtube-url">Enlace de YouTube o YouTube Music</label>
+          <div class="svc-link-row">
+            <div class="svc-input-wrap">
+              <input id="youtube-url" class="integration-input" type="url" autocomplete="off" spellcheck="false" placeholder="https://music.youtube.com/watch?v=… o /playlist?list=…">
+              <button type="button" class="svc-paste" data-paste-target="youtube-url" title="Pegar desde el portapapeles" aria-label="Pegar desde el portapapeles"><i class="fas fa-paste"></i></button>
+            </div>
+            <button class="btn-primary-modal integration-connect svc-load" data-service="youtube">Cargar</button>
+          </div>
+          <small class="svc-hint">Vídeos, playlists y álbumes que permitan reproducción incrustada.</small>
+          <div id="youtube-player-shell" class="youtube-player-shell" hidden>
+            <div id="youtube-player"></div>
+          </div>
+          <a class="integration-doc-link" href="https://developers.google.com/youtube/iframe_api_reference" target="_blank" rel="noopener noreferrer">Documentación oficial</a>
+        </article>
+
+        <!-- APPLE MUSIC -->
+        <article class="integration-card" id="svc-panel-apple" role="tabpanel" aria-labelledby="svc-tab-apple" data-service-card="apple">
+          <div class="integration-card-head">
+            <div class="integration-icon apple"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-applemusic"/></svg></div>
+            <div><h4>Apple Music</h4><p>Álbumes, playlists y canciones de Apple Music.</p></div>
+          </div>
+          <span id="apple-status" class="integration-status">No configurado</span>
+
+          <label class="svc-label" for="apple-link">Enlace de Apple Music</label>
+          <div class="svc-link-row">
+            <div class="svc-input-wrap">
+              <input id="apple-link" class="integration-input" type="text" autocomplete="off" spellcheck="false" placeholder="https://music.apple.com/…/album/…">
+              <button type="button" class="svc-paste" data-paste-target="apple-link" title="Pegar desde el portapapeles" aria-label="Pegar desde el portapapeles"><i class="fas fa-paste"></i></button>
+            </div>
+            <button type="button" class="btn-primary-modal svc-load" data-load-link="apple">Cargar</button>
+          </div>
+          <small class="svc-hint">Acepta enlaces de music.apple.com (álbum, playlist, canción).</small>
+          <div id="apple-embed" class="svc-embed" hidden></div>
+
+          <details class="svc-advanced">
+            <summary><i class="fas fa-key"></i> Conectar cuenta (avanzado)</summary>
+            <p>MusicKit JS necesita un Developer Token emitido por tu backend; NOIR no lo guarda en el navegador.</p>
+            <button class="btn-primary-modal integration-connect" data-service="apple">Preparar MusicKit</button>
+          </details>
+          <a class="integration-doc-link" href="https://developer.apple.com/documentation/musickit" target="_blank" rel="noopener noreferrer">Documentación oficial</a>
+        </article>
+      </div>
+
+      <div id="external-action-result" class="integration-result" aria-live="polite"></div>
+
+      <div class="integration-note">
+        <i class="fas fa-shield-alt"></i>
+        <span>La reproducción de archivos locales, playlists, favoritos y controles de NOIR permanecen intactos. Las plataformas externas no descargan sus canciones a IndexedDB. La autenticación real se completa con las credenciales de desarrollador y los tokens exigidos por cada proveedor.</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
